@@ -97,7 +97,7 @@ function getUnitsToHealAround(UnitID,radius,health,count)
 	end
 	local unit = {x = X1,y = Y1,z = Z1,guid = UnitGUID(UnitID),name = UnitName(UnitID)}
 	-- once we get our unit location we call our getdistance
-	lowHealthCandidates = {}
+	local lowHealthCandidates = {}
 	for i = 1, #br.friend do
 		local thisUnit = br.friend[i]
 		-- if in given radius
@@ -134,6 +134,55 @@ function getUnitsToHealAround(UnitID,radius,health,count)
 	lowHealthCandidates[0] = { unit = UnitID, coef = getLowHealthCoeficient(lowHealthCandidates) }
 	return lowHealthCandidates
 end
+
+totalUnits = {}
+local startUnit
+local currentJump 
+local jumpFound = true
+local function chainJumps(unit,hp,range)
+	for i = 1, #br.friend do
+		local newUnit = br.friend[i]
+		local unitFound = false
+		if newUnit.hp <= hp and newUnit.guid ~= unit.guid and getNovaDistance(unit,newUnit) <= range then
+			for j = 1, #totalUnits do
+				if totalUnits[j].guid == newUnit.guid then
+					unitFound = true
+				end
+			end
+			if unitFound == false then
+				currentJump = newUnit
+				tinsert(totalUnits, #totalUnits+1, {guid = newUnit.guid})
+				return 
+			end
+		end
+	end
+	jumpFound = false
+end
+
+
+function chainHealUnits(spell,range,hp,count)
+	jumpFound = true
+	for i = 1, #br.friend do
+		local thisUnit = br.friend[i]
+		if thisUnit.hp <= hp then
+			startUnit = thisUnit.unit
+			currentJump = thisUnit
+			tinsert(totalUnits, #totalUnits+1, {guid = thisUnit.guid})
+			while #totalUnits < count and jumpFound do
+				chainJumps(currentJump,hp,range)
+			end
+			if #totalUnits < count then
+				totalUnits = {}
+			elseif #totalUnits >= count then
+				totalUnits= {}
+				if castSpell(startUnit,spell,false,true) then
+					return true 
+				end
+			end
+		end
+	end
+end
+
 -- returns coefficient of low health units around another unit
 function getLowHealthCoeficient(lowHealthCandidates)
 	local tableCoef = 0
@@ -206,7 +255,7 @@ function inLoSHealer()
 	end
 	for i = 1, #br.friend do
 		local thisUnit = br.friend[i].unit
-		if not UnitIsUnit(thisUnit,"player") and  UnitGroupRolesAssigned(thisUnit) == "HEALER" then
+		if not GetUnitIsUnit(thisUnit,"player") and  UnitGroupRolesAssigned(thisUnit) == "HEALER" then
 			drawHealers(thisUnit)
 		end
 	end
@@ -214,10 +263,10 @@ end
 
 
 function isInside(x,y,ax,ay,bx,by,dx,dy)
-	bax = bx - ax
-	bay = by - ay
-	dax = dx - ax
-	day = dy - ay
+	local bax = bx - ax
+	local bay = by - ay
+	local dax = dx - ax
+	local day = dy - ay
 
 	if ((x - ax) * bax + (y - ay) * bay <= 0.0) then return false end
 	if ((x - bx) * bax + (y - by) * bay >= 0.0) then return false end
@@ -255,19 +304,24 @@ function getUnitsInRect(width,length, showLines, hp)
 	end
 
 	local unitCounter = 0
+	local UnitsInRect = {}
+	table.wipe(UnitsInRect)
 	for i = 1, #br.friend do
 		local thisUnit = br.friend[i]
-		if thisUnit.hp <= hp and not UnitIsDeadOrGhost(thisUnit.unit) then
-			local tX, tY = GetObjectPosition(thisUnit.unit)
-			if isInside(tX,tY,nlX,nlY,nrX,nrY,frX,frY) then
-				if showLines then
-					LibDraw.Circle(tX, tY, playerZ, UnitBoundingRadius(thisUnit.unit))
+		if GetUnitExists(thisUnit.unit) and thisUnit.hp <= hp and not UnitIsDeadOrGhost(thisUnit.unit) then
+			local tX, tY = thisUnit.x, thisUnit.y
+			if tX and tY then
+				if isInside(tX,tY,nlX,nlY,nrX,nrY,frX,frY) then
+					if showLines then
+						LibDraw.Circle(tX, tY, playerZ, UnitBoundingRadius(thisUnit.unit))
+					end
+					unitCounter = unitCounter + 1
+					table.insert(UnitsInRect,thisUnit)
 				end
-				unitCounter = unitCounter + 1
 			end
 		end
 	end
-	return unitCounter
+	return unitCounter, UnitsInRect
 end
 
 function getAngles(X1,Y1,Z1,X2,Y2,Z2)
@@ -283,7 +337,7 @@ function getUnitsInCone(length,angle,hp)
         local thisUnit = br.friend[i].unit
 		if thisUnit.hp <= hp then
 			if br.friend[i].distance <= Length then			
-		        if not UnitIsUnit(thisUnit,"player") and (isDummy(thisUnit) or UnitIsFriend(thisUnit,"player")) then
+		        if not GetUnitIsUnit(thisUnit,"player") and (isDummy(thisUnit) or GetUnitIsFriend(thisUnit,"player")) then
 		            local unitX, unitY, unitZ = GetObjectPosition(thisUnit)
 		            if playerX and unitX then
 		                local angleToUnit = getAngles(playerX,playerY,playerZ,unitX,unitY,unitZ)

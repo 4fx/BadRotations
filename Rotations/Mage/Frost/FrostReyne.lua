@@ -1,4 +1,4 @@
-local rotationName = "ReyneFrost"
+local rotationName = "ReyneFrostAboEdit"
 
 ---------------
 --- Toggles ---
@@ -40,9 +40,17 @@ local function createOptions()
         section = br.ui:createSection(br.ui.window.profile, "Cooldowns")
         -- Trinkets
             br.ui:createCheckbox(section,"Icy Veins")
+		-- Trinkets
+            br.ui:createCheckbox(section,"Trinket 1", "Use Trinket 1 on Cooldown.")
+            br.ui:createCheckbox(section,"Trinket 2", "Use Trinket 2 on Cooldown.")
         -- Mirror Image
             br.ui:createCheckbox(section,"Mirror Image")
         br.ui:checkSectionState(section)
+    -- Frozen Orb I guess
+        frozenOrbSection = br.ui:createSection(br.ui.window.profile, "Frozen Orb")
+            -- Should we use frozen orb?
+            br.ui:createCheckbox(frozenOrbSection, "Use Frozen Orb")
+        br.ui:checkSectionState(frozenOrbSection)
     end
     optionTable = {{
         [1] = "Rotation Options",
@@ -83,7 +91,7 @@ local function runRotation()
         local debuff                                        = br.player.debuff
         local enemies                                       = br.player.enemies
         local falling, swimming, flying, moving             = getFallTime(), IsSwimming(), IsFlying(), GetUnitSpeed("player")>0
-        local friendly                                      = friendly or UnitIsFriend("target", "player")
+        local friendly                                      = friendly or GetUnitIsFriend("target", "player")
         local gcd                                           = br.player.gcd
         local hasMouse                                      = GetObjectExists("mouseover")
         local hasPet                                        = IsPetActive()
@@ -126,7 +134,7 @@ local function runRotation()
 
 -- Action List - Movement     
     local function actionList_move()
-        if moving and buff.fingersOfFrost.exists() then
+        if moving then
             cast.iceLance()
         end
         if not buff.iceFloes.exists() and moving then
@@ -165,7 +173,9 @@ local function runRotation()
             if cast.icyVeins() then return end
         end
         -- Cast Frozen Orb on Cooldown
-        if cast.frozenOrb() then return end
+        if isChecked("Use Frozen Orb") then
+            if cast.frozenOrb() then return end
+        end
         -- Blizzard with 3 targets
         if cast.able.blizzard("best",nil,3,8) then
             if cast.blizzard("best",nil,3,8) then return end
@@ -175,7 +185,7 @@ local function runRotation()
             if cast.cometStorm() then return end
         end
         -- Flurry on Brain Freeze Proc
-        if buff.brainFreeze.exists() and not buff.fingersOfFrost.exists() and buff.icicles.stack() <= 3 then
+        if buff.brainFreeze.exists() and not buff.fingersOfFrost.exists() and buff.icicles.stack() < 3 then
             if cast.flurry() then return end
         end
         -- Ice lance with Fingers of Frost
@@ -212,11 +222,17 @@ local function runRotation()
             if cast.icyVeins() then return end
         end
         -- Flurry on Brain Freeze Proc
-        if buff.brainFreeze.exists() and not buff.fingersOfFrost.exists() and buff.icicles.stack() <= 3 then
+        if buff.brainFreeze.exists() and not buff.fingersOfFrost.exists() and buff.icicles.stack() < 3 then
             if cast.flurry() then return end
         end
+		-- Shatter
+		if cast.last.glacialSpike() and buff.brainFreeze.exists() then 
+		    if cast.flurry() then return end
+		end	
         -- Frozen Orb
-        if cast.frozenOrb() then return end
+         if isChecked("Use Frozen Orb") then
+            if cast.frozenOrb() then return end
+        end
         -- Blizzard with 3 targets
         if cast.able.blizzard("best",nil,3,8) then
             if cast.blizzard("best",nil,3,8) then return end
@@ -226,7 +242,7 @@ local function runRotation()
             if cast.blizzard("best",nil,2,8) then return end
         end
         -- Ice lance with Fingers of Frost
-        if buff.fingersOfFrost.exists() then
+        if buff.fingersOfFrost.exists() and not cast.last.glacialSpike() then
             if cast.iceLance() then return end
         end
         -- Comet Storm
@@ -271,7 +287,9 @@ local function runRotation()
             if cast.flurry() then return end
         end
         -- Cast Frozen Orb on Cooldown
-        if cast.frozenOrb() then return end
+         if isChecked("Use Frozen Orb") then
+            if cast.frozenOrb() then return end
+        end
         -- Blizzard with 3 targets
         if cast.able.blizzard("best",nil,3,8) then
             if cast.blizzard("best",nil,3,8) then return end
@@ -315,6 +333,15 @@ local function runRotation()
             if #enemies.yards8t >= 5 then
                 if actionList_AOE() then return end
             end
+			--trinket
+			if isChecked("Trinket 1") and canUse(13) then
+                        useItem(13)
+                        return true
+            end
+            if isChecked("Trinket 2") and canUse(14) then
+                        useItem(14)
+                        return true
+            end
             -- Glacial Spike Rotation
             if talent.glacialSpike then
                 if actionList_gs() then return end
@@ -322,6 +349,11 @@ local function runRotation()
              -- Thermal Void Rotation
             if talent.thermalVoid then
                 if actionList_tv() then return end
+            end
+            -- Ray of Frost
+            if talent.rayOfFrost then
+                Print("Ray of Frost is not supported with this profile.")
+                Print("Please use a real talent.")
             end
             end -- End In Combat Rotation
 
